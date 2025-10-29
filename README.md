@@ -1,4 +1,4 @@
-# ChatGPT App Scaffold
+# Create ChatGPT App
 
 A CLI tool for quickly scaffolding ChatGPT applications using the OpenAI Apps SDK and Model Context Protocol (MCP).
 
