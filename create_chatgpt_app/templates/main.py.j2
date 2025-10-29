@@ -1,0 +1,305 @@
+"""{{ description }}"""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
+import mcp.types as types
+from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+
+@dataclass(frozen=True)
+class AppWidget:
+    """Widget data structure for {{ app_name }}."""
+    identifier: str
+    title: str
+    template_uri: str
+    invoking: str
+    invoked: str
+    html: str
+    response_text: str
+
+
+widgets: List[AppWidget] = [
+{%- for widget in widgets %}
+    AppWidget(
+        identifier="{{ widget.identifier }}",
+        title="{{ widget.title }}",
+        template_uri="{{ widget.template_uri }}",
+        invoking="{{ widget.invoking }}",
+        invoked="{{ widget.invoked }}",
+        html=(
+{%- if widget.widget_type == "cdn" %}
+            "<div id=\"{{ widget.identifier.replace('-', '_') }}_root\"></div>\n"
+            "<link rel=\"stylesheet\" href=\"{{ widget.cdn_css or 'https://example.com/' + widget.identifier + '.css' }}\">\n"
+            "<script type=\"module\" src=\"{{ widget.cdn_js or 'https://example.com/' + widget.identifier + '.js' }}\"></script>"
+{%- elif widget.widget_type == "local" %}
+            "<div id=\"{{ widget.identifier.replace('-', '_') }}_root\"></div>\n"
+            "<link rel=\"stylesheet\" href=\"/static/{{ widget.identifier }}.css\">\n"
+            "<script type=\"module\" src=\"/static/{{ widget.identifier }}.js\"></script>"
+{%- else %}
+            "<div style='padding: 20px; border: 1px solid #ccc; border-radius: 8px;'>"
+            "  <h2>{{ widget.title }}</h2>"
+            "  <p>This is the {{ widget.identifier }} widget.</p>"
+            "  <p>Edit main.py to customize this widget's HTML.</p>"
+            "</div>"
+{%- endif %}
+        ),
+        response_text="{{ widget.response_text }}",
+    ){{ "," if not loop.last else "" }}
+{%- endfor %}
+]
+
+
+MIME_TYPE = "text/html+skybridge"
+
+# Build lookup dictionaries for efficient access
+WIDGETS_BY_ID: Dict[str, AppWidget] = {widget.identifier: widget for widget in widgets}
+WIDGETS_BY_URI: Dict[str, AppWidget] = {widget.template_uri: widget for widget in widgets}
+
+
+class ToolInput(BaseModel):
+    """Schema for tool inputs."""
+
+    user_query: str = Field(
+        ...,
+        alias="userQuery",
+        description="The user's input query",
+    )
+
+    options: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional parameters",
+    )
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+# Initialize FastMCP server
+mcp = FastMCP(
+    name="{{ app_name }}",
+    sse_path="/mcp",
+    message_path="/mcp/messages",
+    stateless_http=True,
+)
+
+
+# JSON Schema for MCP protocol
+TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "userQuery": {
+            "type": "string",
+            "description": "The user's input query",
+        },
+        "options": {
+            "type": "object",
+            "description": "Optional parameters",
+        }
+    },
+    "required": ["userQuery"],
+    "additionalProperties": False,
+}
+
+
+def _resource_description(widget: AppWidget) -> str:
+    """Generate resource description."""
+    return f"{widget.title} widget markup"
+
+
+def _tool_meta(widget: AppWidget) -> Dict[str, Any]:
+    """Generate OpenAI-specific metadata for widgets."""
+    return {
+        "openai/outputTemplate": widget.template_uri,
+        "openai/toolInvocation/invoking": widget.invoking,
+        "openai/toolInvocation/invoked": widget.invoked,
+        "openai/widgetAccessible": True,
+        "openai/resultCanProduceWidget": True,
+        "annotations": {
+            "destructiveHint": False,
+            "openWorldHint": False,
+            "readOnlyHint": True,
+        }
+    }
+
+
+def _embedded_widget_resource(widget: AppWidget) -> types.EmbeddedResource:
+    """Create an embedded widget resource."""
+    return types.EmbeddedResource(
+        type="resource",
+        resource=types.TextResourceContents(
+            uri=widget.template_uri,
+            mimeType=MIME_TYPE,
+            text=widget.html,
+            title=widget.title,
+        ),
+    )
+
+
+@mcp._mcp_server.list_tools()
+async def _list_tools() -> List[types.Tool]:
+    """Register all available tools."""
+    return [
+        types.Tool(
+            name=widget.identifier,
+            title=widget.title,
+            description=widget.title,
+            inputSchema=deepcopy(TOOL_INPUT_SCHEMA),
+            _meta=_tool_meta(widget),
+        )
+        for widget in widgets
+    ]
+
+
+@mcp._mcp_server.list_resources()
+async def _list_resources() -> List[types.Resource]:
+    """Expose widgets as resources."""
+    return [
+        types.Resource(
+            name=widget.title,
+            title=widget.title,
+            uri=widget.template_uri,
+            description=_resource_description(widget),
+            mimeType=MIME_TYPE,
+            _meta=_tool_meta(widget),
+        )
+        for widget in widgets
+    ]
+
+
+@mcp._mcp_server.list_resource_templates()
+async def _list_resource_templates() -> List[types.ResourceTemplate]:
+    """Define resource templates."""
+    return [
+        types.ResourceTemplate(
+            name=widget.title,
+            title=widget.title,
+            uriTemplate=widget.template_uri,
+            description=_resource_description(widget),
+            mimeType=MIME_TYPE,
+            _meta=_tool_meta(widget),
+        )
+        for widget in widgets
+    ]
+
+
+async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerResult:
+    """Serve widget HTML when requested."""
+    widget = WIDGETS_BY_URI.get(str(req.params.uri))
+    if widget is None:
+        return types.ServerResult(
+            types.ReadResourceResult(
+                contents=[],
+                _meta={"error": f"Unknown resource: {req.params.uri}"},
+            )
+        )
+
+    contents = [
+        types.TextResourceContents(
+            uri=widget.template_uri,
+            mimeType=MIME_TYPE,
+            text=widget.html,
+            _meta=_tool_meta(widget),
+        )
+    ]
+
+    return types.ServerResult(types.ReadResourceResult(contents=contents))
+
+
+async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
+    """Execute tool logic and return results."""
+    widget = WIDGETS_BY_ID.get(req.params.name)
+    if widget is None:
+        return types.ServerResult(
+            types.CallToolResult(
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Unknown tool: {req.params.name}",
+                    )
+                ],
+                isError=True,
+            )
+        )
+
+    # Validate input
+    arguments = req.params.arguments or {}
+    try:
+        payload = ToolInput.model_validate(arguments)
+    except ValidationError as exc:
+        return types.ServerResult(
+            types.CallToolResult(
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Input validation error: {exc.errors()}",
+                    )
+                ],
+                isError=True,
+            )
+        )
+
+    # YOUR BUSINESS LOGIC GOES HERE
+    # Example: process payload.user_query and payload.options
+    result_data = {
+        "query": payload.user_query,
+        "processed": True,
+        "tool": req.params.name,
+    }
+
+    # Build embedded widget resource
+    widget_resource = _embedded_widget_resource(widget)
+
+    meta: Dict[str, Any] = {
+        "openai.com/widget": widget_resource.model_dump(mode="json"),
+        "openai/outputTemplate": widget.template_uri,
+        "openai/toolInvocation/invoking": widget.invoking,
+        "openai/toolInvocation/invoked": widget.invoked,
+        "openai/widgetAccessible": True,
+        "openai/resultCanProduceWidget": True,
+    }
+
+    return types.ServerResult(
+        types.CallToolResult(
+            content=[
+                types.TextContent(
+                    type="text",
+                    text=widget.response_text,
+                )
+            ],
+            structuredContent=result_data,
+            _meta=meta,
+        )
+    )
+
+
+# Register request handlers
+mcp._mcp_server.request_handlers[types.CallToolRequest] = _call_tool_request
+mcp._mcp_server.request_handlers[types.ReadResourceRequest] = _handle_read_resource
+
+
+# Create FastAPI app
+app = mcp.streamable_http_app()
+
+# Add CORS middleware for local testing
+try:
+    from starlette.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=False,
+    )
+except Exception:
+    pass
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("main:app", host="{{ host }}", port={{ port }}, reload=True)
