@@ -326,9 +326,3 @@ Contributions are welcome. Please feel free to submit a Pull Request.
 ## License
 
 MIT License - see LICENSE file for details
-
-## Support
-
-For issues and questions:
-- Open an issue on [GitHub](https://github.com/hemanth/create-chatgpt-app/issues)
-- Review [example projects](https://github.com/openai/openai-apps-sdk-examples)
