@@ -1,31 +1,29 @@
 # ChatGPT App Scaffold
 
-A powerful CLI tool to quickly scaffold ChatGPT apps using the OpenAI Apps SDK and Model Context Protocol (MCP).
+A CLI tool for quickly scaffolding ChatGPT applications using the OpenAI Apps SDK and Model Context Protocol (MCP).
 
 ## Features
 
-- 🚀 **Quick Start**: Generate a complete ChatGPT app in seconds
-- 🎨 **Widget Templates**: Support for CDN, inline, and local widget types
-- 🔧 **Extensible**: Easy to add new widgets and tools
-- 🐳 **Docker Ready**: Includes Dockerfile and Docker configuration
-- ✅ **Testing**: Pre-configured test structure with pytest
-- 📚 **Well Documented**: Comprehensive README and inline documentation
-- 🎯 **Interactive CLI**: Friendly prompts guide you through setup
+- **Quick Start**: Generate a complete ChatGPT app in seconds
+- **Widget Templates**: Support for CDN, inline, and local widget types
+- **Extensible**: Easy to add new widgets and tools
+- **Docker Ready**: Includes Dockerfile and Docker configuration
+- **Testing**: Pre-configured test structure with pytest
+- **Well Documented**: Comprehensive documentation and code comments
+- **Interactive CLI**: Guided prompts for setup
 
 ## Installation
+
+```bash
+pip install create-chatgpt-app
+```
 
 ### From Source
 
 ```bash
-git clone https://github.com/openai/openai-apps-sdk-examples.git
-cd openai-apps-sdk-examples/create-chatgpt-app
+git clone https://github.com/hemanth/create-chatgpt-app.git
+cd create-chatgpt-app
 pip install -e .
-```
-
-### From PyPI (Coming Soon)
-
-```bash
-pip install create-chatgpt-app
 ```
 
 ## Quick Start
@@ -33,7 +31,7 @@ pip install create-chatgpt-app
 ### Create a New Project
 
 ```bash
-create-chatgpt-app init my-awesome-app
+create-chatgpt-app init my-app
 ```
 
 This will:
@@ -65,7 +63,7 @@ You'll be prompted for:
 create-chatgpt-app init my-app
 
 # With options
-create-chatgpt-app init my-app --name "My App" --description "My awesome ChatGPT app"
+create-chatgpt-app init my-app --name "My App" --description "My ChatGPT app"
 
 # Custom port and host
 create-chatgpt-app init my-app --port 3000 --host localhost
@@ -144,29 +142,29 @@ my-app/
     └── test_main.py    # Unit tests
 ```
 
-## Example: Complete Workflow
+## Example Workflow
 
 ```bash
-# 1. Create a new project
-create-chatgpt-app init pizza-finder
+# Create a new project
+create-chatgpt-app init my-app
 
-# 2. Navigate to the project
-cd pizza-finder
+# Navigate to the project
+cd my-app
 
-# 3. Set up virtual environment
+# Set up virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 4. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# 5. Add more widgets
-create-chatgpt-app add-widget --identifier pizza-map --title "Pizza Map" --type cdn
+# Add more widgets
+create-chatgpt-app add-widget --identifier map-widget --title "Map Widget" --type cdn
 
-# 6. Run the server
+# Run the server
 python main.py
 
-# 7. Test with MCP Inspector
+# Test with MCP Inspector
 npm install -g @modelcontextprotocol/inspector
 mcp-inspector
 # Connect to http://localhost:8000/mcp
@@ -238,24 +236,6 @@ AppWidget(
 )
 ```
 
-### Local Widget Example
-
-```python
-AppWidget(
-    identifier="custom-widget",
-    title="Custom Widget",
-    template_uri="ui://widget/custom.html",
-    invoking="Loading widget",
-    invoked="Widget loaded",
-    html=(
-        "<div id=\"custom-root\"></div>\n"
-        "<link rel=\"stylesheet\" href=\"/static/custom.css\">\n"
-        "<script type=\"module\" src=\"/static/custom.js\"></script>"
-    ),
-    response_text="Custom widget rendered!",
-)
-```
-
 ## Testing
 
 The generated project includes a test structure:
@@ -305,86 +285,6 @@ services:
     restart: unless-stopped
 ```
 
-Run with:
-
-```bash
-docker-compose up
-```
-
-## Advanced Usage
-
-### Custom Input Schema
-
-Edit your `ToolInput` class to add custom fields:
-
-```python
-class ToolInput(BaseModel):
-    """Schema for tool inputs."""
-
-    user_query: str = Field(
-        ...,
-        alias="userQuery",
-        description="The user's input query",
-    )
-
-    # Add custom fields
-    max_results: int = Field(
-        default=10,
-        ge=1,
-        le=100,
-        description="Maximum number of results"
-    )
-
-    category: str = Field(
-        default="all",
-        description="Filter by category"
-    )
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-```
-
-### Adding Database Support
-
-```python
-import asyncpg
-
-# Initialize DB pool
-DB_POOL = None
-
-async def get_db_pool():
-    global DB_POOL
-    if DB_POOL is None:
-        DB_POOL = await asyncpg.create_pool(
-            "postgresql://user:pass@localhost/dbname"
-        )
-    return DB_POOL
-
-# Use in tool handler
-async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        results = await conn.fetch("SELECT * FROM items WHERE ...")
-    # Process results...
-```
-
-### External API Integration
-
-```python
-import httpx
-
-async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
-    payload = ToolInput.model_validate(req.params.arguments or {})
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.example.com/search",
-            params={"q": payload.user_query}
-        )
-        api_data = response.json()
-
-    # Return with widget...
-```
-
 ## Troubleshooting
 
 ### Widget Not Rendering
@@ -401,15 +301,7 @@ Check:
 Verify:
 1. Field names match between schema and Pydantic model
 2. Required fields are marked correctly
-3. Test validation independently:
-
-```python
-from main import ToolInput
-
-test_input = {"userQuery": "test"}
-result = ToolInput.model_validate(test_input)
-print(result)
-```
+3. Test validation independently
 
 ### Server Won't Start
 
@@ -421,7 +313,7 @@ Check:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. Please feel free to submit a Pull Request.
 
 ## Resources
 
@@ -438,10 +330,5 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
-- Open an issue on [GitHub](https://github.com/openai/openai-apps-sdk-examples/issues)
-- Check the [HOWTO guide](./pizzaz_server_python/HOWTO.md)
+- Open an issue on [GitHub](https://github.com/hemanth/create-chatgpt-app/issues)
 - Review [example projects](https://github.com/openai/openai-apps-sdk-examples)
-
----
-
-Made with ❤️ for the ChatGPT developer community
