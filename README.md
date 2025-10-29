@@ -316,21 +316,3 @@ Check:
 ## Contributing
 
 Contributions are welcome. Please feel free to submit a Pull Request.
-
-## Resources
-
-- [OpenAI Apps SDK Examples](https://github.com/openai/openai-apps-sdk-examples)
-- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Pydantic Documentation](https://docs.pydantic.dev/)
-- [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues and questions:
-- Open an issue on [GitHub](https://github.com/hemanth/create-chatgpt-app/issues)
-- Review [example projects](https://github.com/openai/openai-apps-sdk-examples)
